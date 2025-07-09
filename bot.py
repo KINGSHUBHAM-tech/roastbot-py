@@ -2,9 +2,10 @@ from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import json, os, random, re
 
-API_ID = int(os.getenv("26891026"))
-API_HASH = os.getenv("11aacc9305f8896ea752df2eadba2036")
-BOT_TOKEN = os.getenv("7918688697:AAFyfB_0H5bm1Wq1hDOVR-rxeZpe28JO9VI")
+# 🚀 Your credentials hardcoded here for quick test
+API_ID = 26891026
+API_HASH = "11aacc9305f8896ea752df2eadba2036"
+BOT_TOKEN = "7918688697:AAFyfB_0H5bm1Wq1hDOVR-rxeZpe28JO9VI"
 
 app = Client("savage_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 DB_FILE = "modes.json"
@@ -21,7 +22,7 @@ def save_modes(data):
         json.dump(data, f)
 
 modes = load_modes()
-language_overrides = {}  # chat_id -> "eng" or None
+language_overrides = {}
 
 @app.on_message(filters.command("start"))
 async def start(client, message):
@@ -81,7 +82,6 @@ def generate_dynamic_text(mode, lang):
                 "Itni dark vibe hai, bas bas pasand aa gayi."
             ])
     else:
-        # rcon
         return generate_dynamic_text(random.choice(["roast", "compl"]), lang)
 
 def is_english(text):
@@ -94,7 +94,6 @@ async def auto_reply(client, message):
     if chat_id not in modes:
         return
     
-    # Language override if replying to bot
     lang = "eng" if language_overrides.get(chat_id) == "eng" else None
     if message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.is_bot:
         if is_english(message.text):
