@@ -1,109 +1,116 @@
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-import json, os, random, re
+import logging
+import requests
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
-# 🚀 Your credentials hardcoded here for quick test
-API_ID = 26891026
-API_HASH = "11aacc9305f8896ea752df2eadba2036"
-BOT_TOKEN = "7918688697:AAFyfB_0H5bm1Wq1hDOVR-rxeZpe28JO9VI"
+# Logging
+logging.basicConfig(level=logging.INFO)
 
-app = Client("savage_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-DB_FILE = "modes.json"
+# API KEYS
+NUMLOOK_API_KEY = "num_live_nr9kxefWP1xBNk64EoNjysZcHKxHxE9ktF3e5WDp"
+APILAYER_API_KEY = "uDSQF5qdEH1ig8OHgKwMVFOlHdySGYN6"
 
-def load_modes():
-    if not os.path.exists(DB_FILE):
-        with open(DB_FILE, "w") as f:
-            json.dump({}, f)
-    with open(DB_FILE) as f:
-        return json.load(f)
-
-def save_modes(data):
-    with open(DB_FILE, "w") as f:
-        json.dump(data, f)
-
-modes = load_modes()
-language_overrides = {}
-
-@app.on_message(filters.command("start"))
-async def start(client, message):
-    await message.reply_text(
-        "🔥 I’m your dark savage bot.\n"
-        "🖤 Owned by @SUBHxCOSMO\n"
-        "💬 Join support: @FALCONSUBHCHAT",
-        reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("Join Support 🖤", url="https://t.me/FALCONSUBHCHAT")
-        ]])
+# START COMMAND
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "👋 Welcome to the Phone Number Info Bot!\n\n"
+        "You can check details of any phone number via two servers:\n"
+        "📡 SERVER1 (NumLook API)\n"
+        "📡 SERVER2 (APIlayer API)\n\n"
+        "👤 Created by @FALCONSUBH\n"
     )
+    keyboard = [
+        [
+            InlineKeyboardButton("SERVER1", callback_data="server1"),
+            InlineKeyboardButton("SERVER2", callback_data="server2"),
+        ],
+        [InlineKeyboardButton("SUPPORT", url="https://t.me/FALCONSUBHCHAT")],
+    ]
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-@app.on_message(filters.command(["roaston", "complion", "rcon", "stop"], prefixes=".") & filters.me)
-async def set_mode(client, message):
-    chat_id = str(message.chat.id)
-    cmd = message.command[0]
-    if cmd == "roaston":
-        modes[chat_id] = "roast"
-        await message.reply("🔥 Roast mode activated.")
-    elif cmd == "complion":
-        modes[chat_id] = "compl"
-        await message.reply("💀 Compliment mode activated.")
-    elif cmd == "rcon":
-        modes[chat_id] = "both"
-        await message.reply("🎭 Random roast/compliment mode activated.")
-    elif cmd == "stop":
-        modes.pop(chat_id, None)
-        language_overrides.pop(chat_id, None)
-        await message.reply("🛑 Auto replies stopped.")
-    save_modes(modes)
+# STORE ACTIVE SERVER IN CONTEXT
+async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-def generate_dynamic_text(mode, lang):
-    if mode == "roast":
-        if lang == "eng":
-            return random.choice([
-                "Your IQ needs a reboot.", 
-                "You're proof that evolution can go backward.", 
-                "You look like your personality was left in the sun too long."
-            ])
-        else:
-            return random.choice([
-                "Oye, teri soch 2 rupaye wali aur attitude 1000 ka 😂",
-                "Tere jokes sunke WiFi bhi disconnect ho jaye.",
-                "Bhai tu itna slow hai, snail bhi sharmaye."
-            ])
-    elif mode == "compl":
-        if lang == "eng":
-            return random.choice([
-                "Your dark vibe is strangely attractive.",
-                "You're beautifully twisted.",
-                "Your smile could haunt dreams, in a good way."
-            ])
-        else:
-            return random.choice([
-                "Teri dark smile dil le gayi 💀",
-                "Tu poison hai, par phir bhi chahiye.",
-                "Itni dark vibe hai, bas bas pasand aa gayi."
-            ])
-    else:
-        return generate_dynamic_text(random.choice(["roast", "compl"]), lang)
+    if query.data == "server1":
+        context.user_data["server"] = "server1"
+        await query.message.reply_text("🟢 SERVER1 selected. Send a phone number (e.g., +12069220880)")
+    elif query.data == "server2":
+        context.user_data["server"] = "server2"
+        await query.message.reply_text("🟢 SERVER2 selected. Send a phone number (e.g., +12069220880)")
 
-def is_english(text):
-    letters = re.findall(r'[a-zA-Z]', text)
-    return len(letters) > 0 and (len(letters) / max(len(text),1)) > 0.6
-
-@app.on_message(filters.text & ~filters.command(["start"]))
-async def auto_reply(client, message):
-    chat_id = str(message.chat.id)
-    if chat_id not in modes:
+# HANDLE NUMBER MESSAGE
+async def handle_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    server = context.user_data.get("server")
+    if not server:
+        await update.message.reply_text("⚠️ Please choose a server first using /start.")
         return
-    
-    lang = "eng" if language_overrides.get(chat_id) == "eng" else None
-    if message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.is_bot:
-        if is_english(message.text):
-            language_overrides[chat_id] = "eng"
-            lang = "eng"
-    elif chat_id in language_overrides:
-        language_overrides.pop(chat_id)
 
-    mode = modes[chat_id]
-    text = generate_dynamic_text(mode, lang or "hin")
-    await message.reply_text(f"{text}\n\n— 🤖 Powered by @{(await app.get_me()).username}")
+    number = update.message.text.strip()
 
-app.run()
+    if not number.startswith("+"):
+        await update.message.reply_text("❗ Please provide a valid number with country code (e.g., +12069220880)")
+        return
+
+    if server == "server1":
+        # NumLook API
+        url = f"https://api.numlookupapi.com/v1/validate/{number}?apikey={NUMLOOK_API_KEY}"
+    else:
+        # APIlayer API
+        url = f"http://apilayer.net/api/validate?access_key={APILAYER_API_KEY}&number={number}"
+
+    try:
+        res = requests.get(url)
+        data = res.json()
+
+        if "error" in data:
+            await update.message.reply_text(f"❌ Error: {data['error']['info']}")
+            return
+
+        # Build response text
+        if server == "server1":
+            msg = (
+                f"🔍 **NumLook Result**\n"
+                f"📞 Number: {data.get('international_format')}\n"
+                f"🌐 Country: {data.get('country_name')} ({data.get('country_code')})\n"
+                f"🏙️ Location: {data.get('location')}\n"
+                f"📱 Carrier: {data.get('carrier')}\n"
+                f"📲 Line Type: {data.get('line_type')}"
+            )
+        else:
+            msg = (
+                f"🔍 **APIlayer Result**\n"
+                f"📞 Number: {data.get('international_format')}\n"
+                f"🌐 Country: {data.get('country_name')} ({data.get('country_code')})\n"
+                f"🏙️ Location: {data.get('location') or 'N/A'}\n"
+                f"📱 Carrier: {data.get('carrier')}\n"
+                f"📲 Line Type: {data.get('line_type') or 'N/A'}"
+            )
+
+        await update.message.reply_text(msg)
+    except Exception as e:
+        await update.message.reply_text("❌ Failed to fetch number info. Please try again later.")
+
+# MAIN FUNCTION
+def main():
+    import os
+
+    TOKEN = os.environ.get("BOT_TOKEN")  # Set this in Render.com
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(handle_button))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_number))
+
+    app.run_polling()
+
+if __name__ == "__main__":
+    main() 
