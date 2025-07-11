@@ -18,8 +18,36 @@ NUMLOOK_API_KEY = "num_live_nr9kxefWP1xBNk64EoNjysZcHKxHxE9ktF3e5WDp"
 APILAYER_API_KEY = "uDSQF5qdEH1ig8OHgKwMVFOlHdySGYN6"
 BOT_TOKEN = "7532994082:AAHVLyzK9coVgvCp-nwXL1MfPS0X57yZAmk"
 
-# START COMMAND
+REQUIRED_CHANNELS = ["@FALCONSUBH", "@FALCONSUBHCHAT"]
+
+# Force join check
+async def is_user_joined(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    for channel in REQUIRED_CHANNELS:
+        try:
+            member = await context.bot.get_chat_member(chat_id=channel, user_id=user_id)
+            if member.status in ["left", "kicked"]:
+                return False
+        except Exception as e:
+            logging.error(f"Error checking membership in {channel}: {e}")
+            return False
+    return True
+
+# Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if not await is_user_joined(user_id, context):
+        buttons = [
+            [InlineKeyboardButton("Join @FALCONSUBH", url="https://t.me/FALCONSUBH")],
+            [InlineKeyboardButton("Join @FALCONSUBHCHAT", url="https://t.me/FALCONSUBHCHAT")],
+            [InlineKeyboardButton("✅ I've Joined", callback_data="check_join")]
+        ]
+        await update.message.reply_text(
+            "🚫 You must join both channels to use this bot.",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+        return
+
     text = (
         "👋 Welcome to the Phone Number Info Bot!\n\n"
         "You can check details of any phone number via two servers:\n"
@@ -37,10 +65,33 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# HANDLE INLINE BUTTONS
+# Handle join check button
+async def handle_check_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    user_id = query.from_user.id
+
+    if await is_user_joined(user_id, context):
+        await query.message.delete()
+        await start(update, context)  # Send the /start content
+    else:
+        await query.message.reply_text("❗ You still haven't joined all required channels.")
+
+# Handle server button
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
+    user_id = query.from_user.id
+    if not await is_user_joined(user_id, context):
+        buttons = [
+            [InlineKeyboardButton("Join @FALCONSUBH", url="https://t.me/FALCONSUBH")],
+            [InlineKeyboardButton("Join @FALCONSUBHCHAT", url="https://t.me/FALCONSUBHCHAT")],
+            [InlineKeyboardButton("✅ I've Joined", callback_data="check_join")]
+        ]
+        await query.message.reply_text("🚫 Please join both channels to use the bot.", reply_markup=InlineKeyboardMarkup(buttons))
+        return
 
     if query.data == "server1":
         context.user_data["server"] = "server1"
@@ -49,8 +100,18 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["server"] = "server2"
         await query.message.reply_text("🟢 SERVER2 selected. Send a phone number (e.g., +12069220880)")
 
-# HANDLE USER MESSAGE (PHONE NUMBER)
+# Handle number
 async def handle_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_user_joined(user_id, context):
+        buttons = [
+            [InlineKeyboardButton("Join @FALCONSUBH", url="https://t.me/FALCONSUBH")],
+            [InlineKeyboardButton("Join @FALCONSUBHCHAT", url="https://t.me/FALCONSUBHCHAT")],
+            [InlineKeyboardButton("✅ I've Joined", callback_data="check_join")]
+        ]
+        await update.message.reply_text("🚫 You must join both channels first.", reply_markup=InlineKeyboardMarkup(buttons))
+        return
+
     server = context.user_data.get("server")
     if not server:
         await update.message.reply_text("⚠️ Please choose a server first using /start.")
@@ -103,7 +164,8 @@ def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(handle_button))
+    app.add_handler(CallbackQueryHandler(handle_button, pattern="^(server1|server2)$"))
+    app.add_handler(CallbackQueryHandler(handle_check_join, pattern="^check_join$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_number))
 
     app.run_polling()
