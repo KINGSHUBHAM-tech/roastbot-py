@@ -1,241 +1,249 @@
-import logging
-import requests
-import datetime
+import logging, requests, datetime
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    CallbackQueryHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
+    ApplicationBuilder, CommandHandler, CallbackQueryHandler,
+    MessageHandler, ContextTypes, filters
 )
 
-# Config
+# 🔐 Configuration
 NUMLOOK_API_KEY = "num_live_nr9kxefWP1xBNk64EoNjysZcHKxHxE9ktF3e5WDp"
 APILAYER_API_KEY = "uDSQF5qdEH1ig8OHgKwMVFOlHdySGYN6"
 ABSTRACT_API_KEY = "ad2328956d0a4caf818fdb4c042a1bfd"
-BOT_TOKEN = "7532994082:AAHVLyzK9coVgvCp-nwXL1MfPS0X57yZAmk"
+BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
 
 REQUIRED_CHANNELS = ["@FALCONSUBH", "@FALCONSUBHCHAT"]
 LOG_GROUP = "@OGPAYOSINT"
 ADMIN_IDS = {5848851070, 1350027752}
+PASSWORD = "@SUBHxCOSMO"
 
-logging.basicConfig(level=logging.INFO)
+# ⚙️ Runtime storage
 banned_users = set()
 user_limits = {}
+users_started = set()
 
-# Force join check
-async def is_user_joined(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    for channel in REQUIRED_CHANNELS:
+# 🔐 Join check
+async def is_user_joined(uid, ctx):
+    for ch in REQUIRED_CHANNELS:
         try:
-            member = await context.bot.get_chat_member(chat_id=channel, user_id=user_id)
-            if member.status in ["left", "kicked"]:
+            st = await ctx.bot.get_chat_member(chat_id=ch, user_id=uid)
+            if st.status in ("left", "kicked"):
                 return False
-        except Exception:
+        except:
             return False
     return True
 
-# /start
+# 🚀 /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    user_id = user.id
+    users_started.add(user.id)
 
-    if not await is_user_joined(user_id, context):
-        keyboard = [
+    if not await is_user_joined(user.id, context):
+        kb = [
             [InlineKeyboardButton("Join @FALCONSUBH", url="https://t.me/FALCONSUBH")],
             [InlineKeyboardButton("Join @FALCONSUBHCHAT", url="https://t.me/FALCONSUBHCHAT")],
             [InlineKeyboardButton("✅ I've Joined", callback_data="check_join")]
         ]
-        await update.message.reply_text("🚫 You must join both channels to use this bot.", reply_markup=InlineKeyboardMarkup(keyboard))
-        return
+        return await update.message.reply_text("🚫 Join both channels first.", reply_markup=InlineKeyboardMarkup(kb))
 
-    # Log new user
-    text_log = (
-        f"📥 *New User Started Bot*\n"
-        f"👤 Name: `{user.full_name}`\n"
-        f"🆔 ID: `{user.id}`\n"
-        f"📛 Username: @{user.username or 'N/A'}\n"
-        f"🌐 Language: `{user.language_code or 'N/A'}`"
-    )
-    try:
-        await context.bot.send_message(LOG_GROUP, text_log, parse_mode="Markdown")
-    except Exception as e:
-        logging.error(f"Failed to log new user: {e}")
+    await context.bot.send_message(LOG_GROUP, f"📥 New User: {user.full_name} | ID: `{user.id}` | @{user.username or 'N/A'}", parse_mode="Markdown")
 
-    # Start message
-    text = (
-        "👋 Welcome to the Phone Number Info Bot!\n\n"
-        "Check details of any phone number using:\n"
-        "📡 SERVER1 (OWN API)\n"
-        "📡 SERVER2 (OWN API)\n"
-        "📡 SERVER3 (OWN API)\n\n"
-        "👤 Created by @FALCONSUBH\n"
-    )
-    keyboard = [
+    kb = [
         [
             InlineKeyboardButton("SERVER1", callback_data="server1"),
             InlineKeyboardButton("SERVER2", callback_data="server2"),
-            InlineKeyboardButton("SERVER3", callback_data="server3"),
+            InlineKeyboardButton("SERVER3", callback_data="server3")
         ],
-        [InlineKeyboardButton("SUPPORT", url="https://t.me/FALCONSUBHCHAT")],
+        [InlineKeyboardButton("SUPPORT", url="https://t.me/FALCONSUBHCHAT")]
     ]
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text("👋 Welcome to Phone Info Bot!", reply_markup=InlineKeyboardMarkup(kb))
 
-# Check Join Callback
+# ✅ Channel join verify
 async def handle_check_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user_id = query.from_user.id
-
-    if await is_user_joined(user_id, context):
+    if await is_user_joined(query.from_user.id, context):
         await query.message.delete()
         await start(update, context)
     else:
-        await query.message.reply_text("❗ You still haven't joined all required channels.")
+        await query.message.reply_text("❗ Still not joined both channels.")
 
-# Handle Server Selection
+# 📡 Server selection
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user_id = query.from_user.id
+    if not await is_user_joined(query.from_user.id, context):
+        kb = [[InlineKeyboardButton("✅ I've Joined", callback_data="check_join")]]
+        return await query.message.reply_text("🚫 Please join required channels.", reply_markup=InlineKeyboardMarkup(kb))
 
-    if not await is_user_joined(user_id, context):
-        keyboard = [
-            [InlineKeyboardButton("Join @FALCONSUBH", url="https://t.me/FALCONSUBH")],
-            [InlineKeyboardButton("Join @FALCONSUBHCHAT", url="https://t.me/FALCONSUBHCHAT")],
-            [InlineKeyboardButton("✅ I've Joined", callback_data="check_join")]
-        ]
-        await query.message.reply_text("🚫 Join all channels to use the bot.", reply_markup=InlineKeyboardMarkup(keyboard))
-        return
+    context.user_data["server"] = query.data
+    await query.message.reply_text(f"✅ {query.data.upper()} selected. Send phone number.")
 
-    if query.data in ["server1", "server2", "server3"]:
-        context.user_data["server"] = query.data
-        await query.message.reply_text(f"🟢 {query.data.upper()} selected. Send a phone number (e.g., +12069220880)")
-
-# Handle Number Lookup
+# 🔍 Number lookup
 async def handle_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    user_id = user.id
+    uid = user.id
+    users_started.add(uid)
 
-    if user_id in banned_users:
-        await update.message.reply_text("🚫 You are banned from using this bot.")
-        return
-
-    if not await is_user_joined(user_id, context):
-        keyboard = [
-            [InlineKeyboardButton("Join @FALCONSUBH", url="https://t.me/FALCONSUBH")],
-            [InlineKeyboardButton("Join @FALCONSUBHCHAT", url="https://t.me/FALCONSUBHCHAT")],
-            [InlineKeyboardButton("✅ I've Joined", callback_data="check_join")]
-        ]
-        await update.message.reply_text("🚫 Join all channels to use the bot.", reply_markup=InlineKeyboardMarkup(keyboard))
-        return
+    if uid in banned_users:
+        return await update.message.reply_text("🚫 You are banned.")
+    if not await is_user_joined(uid, context):
+        return await update.message.reply_text("🚫 Join channels to continue.")
 
     today = datetime.date.today()
-    if user_id not in user_limits or user_limits[user_id]["date"] != today:
-        user_limits[user_id] = {"date": today, "count": 0}
-
-    if user_limits[user_id]["count"] >= 3:
-        await update.message.reply_text("⚠️ Daily limit reached. Only 3 numbers allowed per day.")
-        return
+    if uid not in user_limits or user_limits[uid]['date'] != today:
+        user_limits[uid] = {'date': today, 'count': 0}
+    if user_limits[uid]['count'] >= 3:
+        return await update.message.reply_text("⚠️ Daily limit reached (3 lookups).")
 
     server = context.user_data.get("server")
     if not server:
-        await update.message.reply_text("⚠️ Please choose a server first using /start.")
-        return
+        return await update.message.reply_text("⚠️ Use /start to pick a server.")
 
     number = update.message.text.strip()
     if not number.startswith("+"):
-        await update.message.reply_text("❗ Use valid number format with + (e.g., +12069220880)")
-        return
+        return await update.message.reply_text("❗ Format: +1234567890")
 
-    # API selection
+    # API URLs
     if server == "server1":
         url = f"https://api.numlookupapi.com/v1/validate/{number}?apikey={NUMLOOK_API_KEY}"
     elif server == "server2":
         url = f"http://apilayer.net/api/validate?access_key={APILAYER_API_KEY}&number={number}"
-    elif server == "server3":
-        url = f"https://phonevalidation.abstractapi.com/v1/?api_key={ABSTRACT_API_KEY}&phone={number}"
     else:
-        await update.message.reply_text("❌ Invalid server selection.")
-        return
+        url = f"https://phonevalidation.abstractapi.com/v1/?api_key={ABSTRACT_API_KEY}&phone={number}"
 
     try:
         res = requests.get(url)
         data = res.json()
-
-        user_limits[user_id]["count"] += 1
+        user_limits[uid]['count'] += 1
 
         if server == "server3":
             msg = (
-                f"🔍 *Abstract API Result*\n"
-                f"📞 Number: {data.get('international')}\n"
-                f"🌐 Country: {data.get('country', {}).get('name')}\n"
-                f"🏙️ Location: {data.get('location') or 'N/A'}\n"
-                f"📱 Carrier: {data.get('carrier')}\n"
-                f"📲 Line Type: {data.get('type') or 'N/A'}"
+                f"*Abstract Result*\n"
+                f"📞 {data.get('international')}\n"
+                f"🌐 {data.get('country', {}).get('name')}\n"
+                f"📍 {data.get('location')}\n"
+                f"📱 {data.get('carrier')}\n"
+                f"📶 {data.get('type')}"
             )
         else:
             msg = (
-                f"🔍 *{'NumLook' if server == 'server1' else 'APIlayer'} Result*\n"
-                f"📞 Number: {data.get('international_format')}\n"
-                f"🌐 Country: {data.get('country_name')} ({data.get('country_code')})\n"
-                f"🏙️ Location: {data.get('location') or 'N/A'}\n"
-                f"📱 Carrier: {data.get('carrier')}\n"
-                f"📲 Line Type: {data.get('line_type') or 'N/A'}"
+                f"*{server.upper()} Result*\n"
+                f"📞 {data.get('international_format')}\n"
+                f"🌐 {data.get('country_name')} ({data.get('country_code')})\n"
+                f"📍 {data.get('location')}\n"
+                f"📱 {data.get('carrier')}\n"
+                f"📶 {data.get('line_type')}"
             )
-
         await update.message.reply_text(msg, parse_mode="Markdown")
-
-        # Log lookup
-        log_text = (
-            f"📊 *New Number Lookup*\n"
-            f"👤 Name: `{user.full_name}`\n"
-            f"🆔 ID: `{user.id}`\n"
-            f"📛 Username: @{user.username or 'N/A'}\n"
-            f"📞 Searched Number: `{number}`\n"
-            f"🌐 Server Used: `{server.upper()}`"
-        )
-        await context.bot.send_message(LOG_GROUP, log_text, parse_mode="Markdown")
-
+        await context.bot.send_message(LOG_GROUP, f"📊 Lookup by {uid} | Number: `{number}` | Server: `{server.upper()}`", parse_mode="Markdown")
     except Exception as e:
-        logging.error(f"Fetch failed: {e}")
-        await update.message.reply_text("❌ Failed to fetch number info.")
+        logging.error(e)
+        await update.message.reply_text("❌ Fetch failed.")
 
-# Ban/Unban Commands (Admin only)
+# 🧑‍⚖️ Ban/Unban
 async def ban_unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in ADMIN_IDS:
-        await update.message.reply_text("❌ You are not authorized to use this command.")
-        return
-
-    text = update.message.text.strip()
-    is_ban = text.startswith("!ban")
-    is_unban = text.startswith("!unban")
-
+    uid = update.effective_user.id
+    if uid not in ADMIN_IDS:
+        return await update.message.reply_text("❌ Not authorized.")
     try:
-        target = int(text.split(" ", 1)[1].strip().lstrip("@"))
+        parts = update.message.text.split()
+        cmd, target = parts[0], int(parts[1].lstrip("@"))
+        if cmd == "!ban":
+            banned_users.add(target)
+            await update.message.reply_text(f"✅ Banned user `{target}`", parse_mode="Markdown")
+        elif cmd == "!unban":
+            banned_users.discard(target)
+            await update.message.reply_text(f"✅ Unbanned user `{target}`", parse_mode="Markdown")
     except:
         await update.message.reply_text("❗ Usage: !ban <user_id> or !unban <user_id>")
-        return
 
-    if is_ban:
-        banned_users.add(target)
-        await update.message.reply_text(f"✅ User `{target}` has been *banned*.", parse_mode="Markdown")
-    else:
-        banned_users.discard(target)
-        await update.message.reply_text(f"✅ User `{target}` has been *unbanned*.", parse_mode="Markdown")
+# 📢 /broadcast
+async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS:
+        return await update.message.reply_text("❌ Admin only.")
+    await update.message.reply_text("Send the broadcast message:")
+    context.user_data["awaiting_broadcast"] = True
 
-# Run bot
+async def broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.pop("awaiting_broadcast", False):
+        return await handle_number(update, context)
+    msg = update.message.text
+    count = 0
+    for uid in users_started:
+        try:
+            await context.bot.send_message(uid, msg)
+            count += 1
+        except:
+            pass
+    await update.message.reply_text(f"✅ Broadcast sent to {count} users.")
+    await context.bot.send_message(LOG_GROUP, f"📢 Broadcast:\n{msg}")
+
+# 🛡️ /apanel
+async def apanel_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🔑 Enter admin panel password:")
+    context.user_data["awaiting_apanel"] = True
+
+async def apanel_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.pop("awaiting_apanel", False):
+        return await handle_number(update, context)
+    if update.message.text.strip() != PASSWORD:
+        return await update.message.reply_text("❌ Incorrect password.")
+    user = update.effective_user
+    kb = [
+        [InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user.id}")],
+        [InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user.id}")]
+    ]
+    for aid in ADMIN_IDS:
+        await context.bot.send_message(aid, f"👤 Admin Request from `{user.full_name}` | ID: `{user.id}`", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
+    await update.message.reply_text("⏳ Sent for approval...")
+
+async def apanel_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    data = update.callback_query.data
+    await update.callback_query.answer()
+    if "approve" in data or "reject" in data:
+        target = int(data.split("_")[1])
+        if "approve" in data:
+            ADMIN_IDS.add(target)
+            await context.bot.send_message(target, "✅ You are now an admin.")
+            await context.bot.send_message(LOG_GROUP, f"🟢 Approved admin `{target}`")
+        else:
+            await context.bot.send_message(target, "❌ Your request was rejected.")
+            await context.bot.send_message(LOG_GROUP, f"🔴 Rejected admin `{target}`")
+
+# 📚 /help
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    help_text = (
+        "📖 *Help Menu*\n\n"
+        "👥 *User Commands:*\n"
+        "• /start – Start and select server\n"
+        "• /help – View this help menu\n"
+        "• Send number (e.g., +1234567890)\n"
+    )
+    if uid in ADMIN_IDS:
+        help_text += (
+            "\n🛡️ *Admin Commands:*\n"
+            "• /broadcast – Send message to all users\n"
+            "• /apanel – Request admin panel access\n"
+            "• !ban <user_id> – Ban user\n"
+            "• !unban <user_id> – Unban user\n"
+        )
+    await update.message.reply_text(help_text, parse_mode="Markdown")
+
+# 🔁 main()
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(handle_button, pattern="^(server1|server2|server3)$"))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("broadcast", broadcast_start))
+    app.add_handler(CommandHandler("apanel", apanel_start))
+    app.add_handler(CallbackQueryHandler(handle_button, pattern="^server"))
     app.add_handler(CallbackQueryHandler(handle_check_join, pattern="^check_join$"))
+    app.add_handler(CallbackQueryHandler(apanel_response, pattern="^(approve|reject)_"))
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^!(ban|unban) "), ban_unban))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r".+"), broadcast_message))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_number))
-
+    app.add_handler(MessageHandler(filters.TEXT, apanel_password))
     app.run_polling()
 
 if __name__ == "__main__":
