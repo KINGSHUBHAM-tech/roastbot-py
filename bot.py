@@ -14,16 +14,18 @@ from telegram.ext import (
 # Config
 NUMLOOK_API_KEY = "num_live_nr9kxefWP1xBNk64EoNjysZcHKxHxE9ktF3e5WDp"
 APILAYER_API_KEY = "uDSQF5qdEH1ig8OHgKwMVFOlHdySGYN6"
+ABSTRACT_API_KEY = "ad2328956d0a4caf818fdb4c042a1bfd"
 BOT_TOKEN = "7532994082:AAHVLyzK9coVgvCp-nwXL1MfPS0X57yZAmk"
-REQUIRED_CHANNELS = ["@FALCONSUBH", "@FALCONSUBHCHAT"]
-LOG_GROUP = "@FALCONSUBHCHAT"
 
-# Setup
+REQUIRED_CHANNELS = ["@FALCONSUBH", "@FALCONSUBHCHAT"]
+LOG_GROUP = "@OGPAYOSINT"
+ADMIN_IDS = {5848851070, 1350027752}
+
 logging.basicConfig(level=logging.INFO)
 banned_users = set()
 user_limits = {}
 
-# Force join checker
+# Force join check
 async def is_user_joined(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
     for channel in REQUIRED_CHANNELS:
         try:
@@ -34,12 +36,11 @@ async def is_user_joined(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bo
             return False
     return True
 
-# /start handler
+# /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
 
-    # Force join check
     if not await is_user_joined(user_id, context):
         keyboard = [
             [InlineKeyboardButton("Join @FALCONSUBH", url="https://t.me/FALCONSUBH")],
@@ -49,38 +50,39 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🚫 You must join both channels to use this bot.", reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
-    # Send log to group
+    # Log new user
     text_log = (
-        f"📥 New user started bot\n"
-        f"👤 Name: {user.full_name}\n"
-        f"🆔 ID: {user.id}\n"
+        f"📥 *New User Started Bot*\n"
+        f"👤 Name: `{user.full_name}`\n"
+        f"🆔 ID: `{user.id}`\n"
         f"📛 Username: @{user.username or 'N/A'}\n"
-        f"🌍 Language: {user.language_code or 'N/A'}"
+        f"🌐 Language: `{user.language_code or 'N/A'}`"
     )
     try:
-        await context.bot.send_message(LOG_GROUP, text_log)
+        await context.bot.send_message(LOG_GROUP, text_log, parse_mode="Markdown")
     except Exception as e:
-        logging.error(f"Failed to send log: {e}")
+        logging.error(f"Failed to log new user: {e}")
 
-    # Main menu
+    # Start message
     text = (
         "👋 Welcome to the Phone Number Info Bot!\n\n"
-        "You can check details of any phone number via two servers:\n"
+        "Check details of any phone number using:\n"
         "📡 SERVER1 (NumLook API)\n"
         "📡 SERVER2 (APIlayer API)\n"
-        "😉 IF ANY SERVER DOESN'T REPLY OR RESPONSE\n THEN TRY CHANGING TO ANOTHER\n\n"
+        "📡 SERVER3 (Abstract API)\n\n"
         "👤 Created by @FALCONSUBH\n"
     )
     keyboard = [
         [
             InlineKeyboardButton("SERVER1", callback_data="server1"),
             InlineKeyboardButton("SERVER2", callback_data="server2"),
+            InlineKeyboardButton("SERVER3", callback_data="server3"),
         ],
         [InlineKeyboardButton("SUPPORT", url="https://t.me/FALCONSUBHCHAT")],
     ]
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# Callback: check_join
+# Check Join Callback
 async def handle_check_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -92,7 +94,7 @@ async def handle_check_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await query.message.reply_text("❗ You still haven't joined all required channels.")
 
-# Callback: server buttons
+# Handle Server Selection
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -107,24 +109,19 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("🚫 Join all channels to use the bot.", reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
-    if query.data == "server1":
-        context.user_data["server"] = "server1"
-        await query.message.reply_text("🟢 SERVER1 selected. Send a phone number (e.g., +12069220880)")
-    elif query.data == "server2":
-        context.user_data["server"] = "server2"
-        await query.message.reply_text("🟢 SERVER2 selected. Send a phone number (e.g., +12069220880)")
+    if query.data in ["server1", "server2", "server3"]:
+        context.user_data["server"] = query.data
+        await query.message.reply_text(f"🟢 {query.data.upper()} selected. Send a phone number (e.g., +12069220880)")
 
-# Number fetch handler
+# Handle Number Lookup
 async def handle_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
 
-    # Check banned
     if user_id in banned_users:
         await update.message.reply_text("🚫 You are banned from using this bot.")
         return
 
-    # Force join
     if not await is_user_joined(user_id, context):
         keyboard = [
             [InlineKeyboardButton("Join @FALCONSUBH", url="https://t.me/FALCONSUBH")],
@@ -134,15 +131,12 @@ async def handle_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🚫 Join all channels to use the bot.", reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
-    # Check limit
     today = datetime.date.today()
-    if user_id not in user_limits:
-        user_limits[user_id] = {"date": today, "count": 0}
-    elif user_limits[user_id]["date"] != today:
+    if user_id not in user_limits or user_limits[user_id]["date"] != today:
         user_limits[user_id] = {"date": today, "count": 0}
 
     if user_limits[user_id]["count"] >= 3:
-        await update.message.reply_text("⚠️ Daily limit reached. You can fetch only 3 numbers per day.")
+        await update.message.reply_text("⚠️ Daily limit reached. Only 3 numbers allowed per day.")
         return
 
     server = context.user_data.get("server")
@@ -155,68 +149,89 @@ async def handle_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❗ Use valid number format with + (e.g., +12069220880)")
         return
 
+    # API selection
     if server == "server1":
         url = f"https://api.numlookupapi.com/v1/validate/{number}?apikey={NUMLOOK_API_KEY}"
-    else:
+    elif server == "server2":
         url = f"http://apilayer.net/api/validate?access_key={APILAYER_API_KEY}&number={number}"
+    elif server == "server3":
+        url = f"https://phonevalidation.abstractapi.com/v1/?api_key={ABSTRACT_API_KEY}&phone={number}"
+    else:
+        await update.message.reply_text("❌ Invalid server selection.")
+        return
 
     try:
         res = requests.get(url)
         data = res.json()
 
-        if "error" in data:
-            await update.message.reply_text(f"❌ Error: {data['error']['info']}")
-            return
-
-        # Count usage
         user_limits[user_id]["count"] += 1
 
-        msg = (
-            f"🔍 **{'NumLook' if server == 'server1' else 'APIlayer'} Result**\n"
-            f"📞 Number: {data.get('international_format')}\n"
-            f"🌐 Country: {data.get('country_name')} ({data.get('country_code')})\n"
-            f"🏙️ Location: {data.get('location') or 'N/A'}\n"
-            f"📱 Carrier: {data.get('carrier')}\n"
-            f"📲 Line Type: {data.get('line_type') or 'N/A'}"
-        )
+        if server == "server3":
+            msg = (
+                f"🔍 *Abstract API Result*\n"
+                f"📞 Number: {data.get('international')}\n"
+                f"🌐 Country: {data.get('country', {}).get('name')}\n"
+                f"🏙️ Location: {data.get('location') or 'N/A'}\n"
+                f"📱 Carrier: {data.get('carrier')}\n"
+                f"📲 Line Type: {data.get('type') or 'N/A'}"
+            )
+        else:
+            msg = (
+                f"🔍 *{'NumLook' if server == 'server1' else 'APIlayer'} Result*\n"
+                f"📞 Number: {data.get('international_format')}\n"
+                f"🌐 Country: {data.get('country_name')} ({data.get('country_code')})\n"
+                f"🏙️ Location: {data.get('location') or 'N/A'}\n"
+                f"📱 Carrier: {data.get('carrier')}\n"
+                f"📲 Line Type: {data.get('line_type') or 'N/A'}"
+            )
 
-        await update.message.reply_text(msg)
+        await update.message.reply_text(msg, parse_mode="Markdown")
+
+        # Log lookup
+        log_text = (
+            f"📊 *New Number Lookup*\n"
+            f"👤 Name: `{user.full_name}`\n"
+            f"🆔 ID: `{user.id}`\n"
+            f"📛 Username: @{user.username or 'N/A'}\n"
+            f"📞 Searched Number: `{number}`\n"
+            f"🌐 Server Used: `{server.upper()}`"
+        )
+        await context.bot.send_message(LOG_GROUP, log_text, parse_mode="Markdown")
+
     except Exception as e:
-        logging.error(f"Error fetching number: {e}")
+        logging.error(f"Fetch failed: {e}")
         await update.message.reply_text("❌ Failed to fetch number info.")
 
-# Admin: !ban and !unban
+# Ban/Unban Commands (Admin only)
 async def ban_unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type != "private":
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ You are not authorized to use this command.")
         return
 
     text = update.message.text.strip()
     is_ban = text.startswith("!ban")
     is_unban = text.startswith("!unban")
 
-    if not is_ban and not is_unban:
-        return
-
     try:
-        parts = text.split(" ", 1)
-        target = int(parts[1].strip().lstrip("@"))
+        target = int(text.split(" ", 1)[1].strip().lstrip("@"))
     except:
         await update.message.reply_text("❗ Usage: !ban <user_id> or !unban <user_id>")
         return
 
     if is_ban:
         banned_users.add(target)
-        await update.message.reply_text(f"✅ User `{target}` has been banned.")
+        await update.message.reply_text(f"✅ User `{target}` has been *banned*.", parse_mode="Markdown")
     else:
         banned_users.discard(target)
-        await update.message.reply_text(f"✅ User `{target}` has been unbanned.")
+        await update.message.reply_text(f"✅ User `{target}` has been *unbanned*.", parse_mode="Markdown")
 
-# Main
+# Run bot
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(handle_button, pattern="^(server1|server2)$"))
+    app.add_handler(CallbackQueryHandler(handle_button, pattern="^(server1|server2|server3)$"))
     app.add_handler(CallbackQueryHandler(handle_check_join, pattern="^check_join$"))
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^!(ban|unban) "), ban_unban))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_number))
