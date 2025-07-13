@@ -67,9 +67,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "👋 Welcome to the Phone Number Info Bot!\n\n"
         "Check details of any phone number using:\n"
-        "📡 SERVER1 (NumLook API)\n"
-        "📡 SERVER2 (APIlayer API)\n"
-        "📡 SERVER3 (Abstract API)\n\n"
+        "📡 SERVER1 (OWN API)\n"
+        "📡 SERVER2 (OWN API)\n"
+        "📡 SERVER3 (OWN API)\n\n"
         "👤 Created by @FALCONSUBH\n"
     )
     keyboard = [
