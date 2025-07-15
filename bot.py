@@ -1,16 +1,18 @@
-import logging, requests, datetime, os
+import logging, requests, datetime, os, threading
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     ApplicationBuilder, CommandHandler,
     CallbackQueryHandler, MessageHandler,
     ContextTypes, filters
 )
+from fastapi import FastAPI
+import uvicorn
 
 # ---------------- CONFIG ----------------
-BOT_TOKEN = os.getenv("7532994082:AAHVLyzK9coVgvCp-nwXL1MfPS0X57yZAmk", "")
-NUMLOOK_API_KEY = os.getenv("num_live_nr9kxefWP1xBNk64EoNjysZcHKxHxE9ktF3e5WDp", "")
-APILAYER_API_KEY = os.getenv("uDSQF5qdEH1ig8OHgKwMVFOlHdySGYN6 ", "")
-ABSTRACT_API_KEY = os.getenv("ad2328956d0a4caf818fdb4c042a1bfd", "")
+BOT_TOKEN = "7532994082:AAHVLyzK9coVgvCp-nwXL1MfPS0X57yZAmk"
+NUMLOOK_API_KEY = "num_live_nr9kxefWP1xBNk64EoNjysZcHKxHxE9ktF3e5WDp"
+APILAYER_API_KEY = "uDSQF5qdEH1ig8OHgKwMVFOlHdySGYN6"
+ABSTRACT_API_KEY = "ad2328956d0a4caf818fdb4c042a1bfd"
 
 REQUIRED_CHANNELS = ["@FALCONSUBH", "@FALCONSUBHCHAT"]
 LOG_GROUP = "@OGPAYOSINT"
@@ -174,16 +176,22 @@ async def handle_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logging.error(e)
         await update.message.reply_text("❌ *Failed to fetch number info.*", parse_mode="Markdown")
 
-# ---------------- RUN ----------------
-def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+# ---------------- WEB SERVER FOR UPTIME ----------------
+web_app = FastAPI()
 
+@web_app.get("/")
+async def root():
+    return {"status": "Bot is running!"}
+
+# ---------------- RUN ----------------
+def run_bot():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(handle_button, pattern="^server"))
     app.add_handler(CallbackQueryHandler(handle_check_join, pattern="^check_join$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_number))
-
     app.run_polling()
 
 if __name__ == "__main__":
-    main()
+    threading.Thread(target=run_bot).start()
+    uvicorn.run(web_app, host="0.0.0.0", port=10000)
